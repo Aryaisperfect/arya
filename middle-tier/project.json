@@ -1,0 +1,26 @@
+{
+  "name": "middle-tier",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "middle-tier/src",
+  "projectType": "application",
+  "tags": [],
+  "targets": {
+    "serve": {
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["build"],
+      "options": {
+        "buildTarget": "middle-tier:build",
+        "runBuildTargetDependencies": false
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "middle-tier:build:development"
+        },
+        "production": {
+          "buildTarget": "middle-tier:build:production"
+        }
+      }
+    }
+  }
+}
