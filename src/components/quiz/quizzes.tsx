@@ -1,99 +1,126 @@
 import { useEffect, useState } from "react";
 import "./quizzes.css";
-import { Interactive } from "../interactive";
+import { get, post } from "src/api-interface/http-client";
+import { QUESTIONS_URL } from "src/api-interface/url-const";
+import { useSession as useLoginSession } from "src/states/login-state";
+type QuestionType = {
+    _id: string;
+    type: string;
+    difficulty: number;
+    category: string;
+    question: string;
+    correct_answer: string;
+    incorrect_answers: string[];
+};
+
+const useSession = () => {
+    const [currentQuestion, setCurrentQuestion] = useState<QuestionType>();
+    const [examFinished, setExamFinished] = useState(false);
+    const { sessionId, questions, sessionStarted } = useLoginSession() ?? {};
+    useEffect(() => {
+        const fetchNextQuestion = async () => {
+            if (!sessionStarted && sessionId) {
+                const nextQuestion = await post(`${QUESTIONS_URL}/goto-next-question`, { sessionId: sessionId }, null);
+                if (nextQuestion) {
+                    setCurrentQuestion(nextQuestion);
+                }
+            }
+        }
+        fetchNextQuestion();
+
+    }, [sessionId, sessionStarted]);
+
+    const onNextQuestion = async () => {
+        const nextQuestion = await post(`${QUESTIONS_URL}/goto-next-question`, { sessionId: sessionId }, null);
+        if (nextQuestion) {
+            setCurrentQuestion(nextQuestion);
+        }else{
+            setExamFinished(true);
+        }
+
+    }
+    const submitAnswer = async (questionId: string, answer: string) => {
+        await post(`${QUESTIONS_URL}/submit-answer`, { sessionId: sessionId, questionId, answer }, null);
+    }
+
+    return { currentQuestion, onNextQuestion, submitAnswer, questions, sessionStarted, examFinished }
+
+}
 
 export const Quizzes = () => {
-    const [index, setCurrIndex] = useState(0);
-    const [timeLeft, setTimeLeft] = useState(20); // 1200 seconds = 20 minutes
-    const [selectedOptions, setSelectedOptions] = useState<unknown[]>([]);
+    const [selectedOptions, setSelectedOptions] = useState<string>();
     const [message, setMessage] = useState('');
-    const [questions, setQuestions] = useState([
-        {
-            question: 'What is the right answer?',
-            options: [
-                { text: 'Correct', isCorrect: true },
-                { text: 'Nope', isCorrect: false },
-                { text: 'I am right too!', isCorrect: true },
-                { text: 'Leave me alone!', isCorrect: false }
-            ]
-        },
-        {
-            question: 'Who am I?',
-            answer: 'A human',
-            options: []
-        },
-        {
-            question: 'What do I study?',
-            answer: 'Computer Science',
-            options: []
-        }
-    ]);
-
-    useEffect(() => {
-        const timeLeftInterval = setInterval(() => {
-            setTimeLeft((prevLeft) => {
-                if (prevLeft <= 1) {
-                    clearInterval(timeLeftInterval); // Stop countdown at zero
-                    return 0;
-                }
-                return prevLeft - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timeLeftInterval);
-    }, []);
+    const { currentQuestion, onNextQuestion, submitAnswer, sessionStarted, examFinished } = useSession();
 
     return (
         <>
-            <div className="timer">Time Left: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</div>
-            <div className="error">{questions[index].question}</div>
-            <ul>
-                {questions[index].options.map((option) => (
-                    <li
-                        key={option.text}
-                        onClick={() =>
-                            setSelectedOptions((prev) => {
-                                if (!prev.includes(option)) {
-                                    return [...prev, option];
-                                } else {
-                                    return prev;
-                                }
-                            })
+            {sessionStarted && <PastSession></PastSession>}
+            {examFinished && <><h1>Thanks for taking the exam</h1></>}
+            {(currentQuestion && !examFinished) && <>
+                {/* <div className="timer">Time Left: {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</div> */}
+                <div className="error" dangerouslySetInnerHTML={{ __html: currentQuestion.question }} ></div>
+                <ul>
+                    {[...currentQuestion.incorrect_answers, currentQuestion.correct_answer].map((option) => (
+                        <li
+                            key={option}
+                            onClick={() =>
+                                setSelectedOptions(option)
+                            }
+                            style={{ background: selectedOptions === option ? '#ff5733' : undefined }}
+                            dangerouslySetInnerHTML={{ __html: option }}
+                        >
+                        </li>
+                    ))}
+                </ul>
+                <div className="answers">{currentQuestion.question}</div>
+                {message && <div>{message}</div>}
+                <button
+                    className="button"
+                    disabled={!selectedOptions}
+                    onClick={async () => {
+                        if (!selectedOptions) {
+                            setMessage('Oops! Make sure you selected all the correct options.');
+                            setSelectedOptions('');
+                        } else {
+                            await submitAnswer(currentQuestion._id, selectedOptions);
+                            await onNextQuestion();
                         }
-                        style={{ background: selectedOptions.includes(option) ? '#ff5733' : undefined }}
-                    >
-                        {option.text}
-                    </li>
-                ))}
-            </ul>
-            <div className="answers">{questions[index].answer}</div>
-            {message && <div>{message}</div>}
-            <button
-                className="button"
-                onClick={() => {
-                    const correctOptions = questions[index].options.filter((option) => option.isCorrect);
-                    let allCorrectSelected = false;
-
-                    if (correctOptions.length === selectedOptions.length) {
-                        allCorrectSelected = correctOptions.every((opt) => selectedOptions.includes(opt));
-                    }
-
-                    if (!allCorrectSelected) {
-                        setMessage('Oops! Make sure you selected all the correct options.');
-
-                        // Remove the "Oops!" message after 2.5 seconds
-                        setTimeout(() => setMessage(''), 2500);
-
-                        setSelectedOptions([]);
-                    } else {
-                        setMessage('');
-                        setSelectedOptions([]);
-                        setCurrIndex((prevIndex) => (prevIndex + 1) % questions.length);
-                    }
-                }}
-            >
-                Next
-            </button>
+                    }}
+                >
+                    Submit
+                </button>
+            </>
+            }
         </>
     );
 };
+
+export const PastSession = () => {
+    const { sessionStarted = '', questions = [] } = useLoginSession() ?? {};
+    return (
+        <>
+            <h1>You have already submitted your exam on {`${sessionStarted}`}</h1>
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Question</th>
+                        <th scope="col">Result</th>
+                        <th scope="col">Difficulty</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {questions.map((q: any, idx) => {
+                        return <tr>
+                            <th scope="row">{idx}</th>
+                            <td dangerouslySetInnerHTML={{ __html: q.question }}></td>
+                            <td>{q.result ? 'Correct' : 'Incorrect'}</td>
+                            <td>{q.difficulty}</td>
+                        </tr>
+                    })}
+                </tbody>
+            </table>
+
+        </>
+    )
+}

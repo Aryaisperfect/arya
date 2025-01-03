@@ -1,20 +1,29 @@
 import { useEffect, useState } from 'react';
 import {BehaviorSubject} from 'rxjs';
 
-const currentloggedInUser = new BehaviorSubject<{loggedInUser: string, role: 'admin' | 'candidate'} | undefined>(undefined);
+interface Session {
+    name: string,
+    sessionId: string,
+    category: string,
+    numberOfQuestions: number,
+    sessionStarted?: Date,
+    questions?: unknown[]
+    
+}
+const currentSession = new BehaviorSubject<Session | undefined>(undefined);
 
-export const useLoggedInUser = () => {
-    const [loggedIn, setLoggedIn] = useState<{ loggedInUser: string, role: 'admin' | 'candidate' } | undefined>(currentloggedInUser.value);
+export const useSession = () => {
+    const [session, setSession] = useState<Session | undefined>(currentSession.value);
     useEffect(() => {
-        const subscriptionId = currentloggedInUser.subscribe((loggedInUser) => {
-            setLoggedIn(loggedInUser);
+        const subscriptionId = currentSession.subscribe((session) => {
+            setSession(session);
         });
         return () => subscriptionId.unsubscribe();
 
     });
-    return loggedIn;
+    return session;
 }
 
-export const setLoggedInUser = (loggedInUser : {loggedInUser: string, role: 'admin' | 'candidate'}) => {
-    currentloggedInUser.next(loggedInUser);
+export const setSession = (session :Session) => {
+    currentSession.next(session);
 }

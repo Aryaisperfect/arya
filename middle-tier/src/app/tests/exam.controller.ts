@@ -20,10 +20,35 @@ export class ExamController{
     createQuestion(@Body() createQuestion: CreateQuestionDTO){
         return this.examService.createQuestion(createQuestion);
     }
+
+    @Post('/goto-next-question')
+    gotoNextQuestion(@Body() requestPayload: {sessionId: string}){
+        const {sessionId} = requestPayload;
+        return this.examService.goToNextQuestion(sessionId);
+    }
+
+    @Post('/session-login')
+    startExamSession(@Body() sessionLogin: {
+        name: string,
+        password: string,
+        sessionId: string
+    }){
+        return this.examService.sessionLogin(sessionLogin);
+    }
     
     @Get('/questions')
     getQuestions(){
         return this.examService.getAllQuestions();
+    }
+
+    @Post('/submit-answer')
+    submitAnswer(@Body() answerSubmitted: {
+        sessionId: string,
+        questionId: string,
+        answer: string
+    }){
+        return this.examService.submitAnswer(answerSubmitted);
+
     }
 
 }
